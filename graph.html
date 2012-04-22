@@ -1,0 +1,148 @@
+<html>
+  <head>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.3.1/underscore-min.js"></script>
+    <script type="text/javascript" src="http://code.jquery.com/jquery-1.7.2.min.js"></script>
+    <script type="text/javascript" src="dataout.js"></script>
+    <script type="text/javascript">
+      google.load("visualization", "1", {packages:["corechart"]});
+      google.setOnLoadCallback(chartReady);
+      /*var minDate = 1334566800000;
+      var maxDate = 1334587331024;
+      var timeShift = 7200000;
+      var columns = [
+          {required: true, type: "datetime", header:"Time"},
+          {type: "number", header:"Process(_Total)\% Processor Time"},
+          {type: "number", header:"Process(_Total)\IO Read Bytes/sec"},
+          {type: "number", header:"Process(_Total)\IO Write Bytes/sec"},
+          {type: "number", header:"Process(sqlservr)\% Processor Time"},
+          {type: "number", header:"Process(sqlservr)\IO Read Bytes/sec"},
+          {type: "number", header:"Process(sqlservr)\IO Write Bytes/sec"},
+          {type: "number", header:"Process(w3wp#1)\% Processor Time"},
+          {type: "number", header:"Process(w3wp#1)\IO Read Bytes/sec"},
+          {type: "number", header:"Process(w3wp#1)\IO Write Bytes/sec"},
+          {type: "number", header:"Process(w3wp)\% Processor Time"},
+          {type: "number", header:"Process(w3wp)\IO Read Bytes/sec"},
+          {type: "number", header:"Process(w3wp)\IO Write Bytes/sec"}
+        ];*/
+      var state = {
+        dateLeft: new Date(minDate),
+        dateRight: new Date(minDate+timeShift),
+        dateEPOC: minDate,
+        columns: [0]
+      };
+      function chartReady() {
+          //while(chartData.length==0) { }
+          applyFilter(state.dateLeft,state.dateRight,state.columns);
+      }
+      function chartRefresh(frmId) {
+        var vals = $("#"+frmId+ " input:checked");
+        var columns = [];
+        for(i=0;i<vals.length;i++) {
+          columns.push(parseInt(vals[i].value,10));
+        }
+
+        state.columns = columns;
+        applyFilter(state.dateLeft,state.dateRight,state.columns);
+        return false;
+      }
+      function applyFilter(dateLeft,dateRight,drawColumns) {
+        dateLeft = dateLeft==null ? new Date("22 Mar 2012 00:01:00 GMT") : dateLeft;
+        dateRight = dateRight==null ? new Date("22 Mar 2012 06:00:00 GMT") : dateRight;
+        
+        var dateFilter = {dateLeft: dateLeft, dateRight:dateRight  };
+        
+        var filterData = _.filter(chartData,function(row){
+          
+          return this.dateLeft <= row[0] && row[0] <= this.dateRight; 
+        },dateFilter);
+
+ 
+        var returnData = _.map(filterData, function(row) {
+          var arr = [];
+          for(i=0;i<this.length;i++) {
+            arr.push(row[this[i]]);
+          }
+          return arr;
+        },drawColumns);
+        drawChart(returnData, columns, drawColumns);
+
+      }
+      function shiftDate(direction,amt) {
+        if(direction=="left") {
+          if(state.dateLeft.getTime()-timeShift<minDate) {
+            alert("Can't shift left");
+            return false;
+          } else {
+            state.dateEPOC = state.dateLeft.getTime()-timeShift;
+            state.dateLeft = new Date(state.dateEPOC);  
+            state.dateRight = new Date(state.dateEPOC+timeShift); 
+          }
+        }
+        if(direction=="right") {
+          if(state.dateRight.getTime()+timeShift>maxDate) {
+            alert("Can't shift right");
+            return false;
+          } else {
+            state.dateEPOC = state.dateLeft.getTime()+timeShift;
+            state.dateLeft = new Date(state.dateEPOC);  
+            state.dateRight = new Date(state.dateEPOC+timeShift); 
+          }
+        }
+        applyFilter(state.dateLeft,state.dateRight,state.columns);
+        $("#time").html(state.dateLeft + " - " + state.dateRight);
+      }
+      function drawChart(data,columns,drawColumns) {
+        var dt = new google.visualization.DataTable();
+        for(i=0;i<drawColumns.length;i++) {
+          var column = columns[drawColumns[i]];
+          dt.addColumn(column.type,column.header);
+        }
+        dt.addRows(data);
+        var options = {
+          title: 'M5 Performance'
+        };
+
+        var chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+        chart.draw(dt, options);
+      }
+      
+    </script>
+  </head>
+  <body>
+    <div id="chart_div" style="width: 1000px; height: 600px;"></div>
+    <div id="controls">
+      <a href="#" id="shiftLeft" onclick="shiftDate('left');return false;"><- Last 2 Hours</a> | <span id="time"></span>  | <a href="#" onclick="shiftDate('right');return false;" id="shiftRight">Next 2 Hours -></a>
+      <form id="frmColumns" onsubmit="chartRefresh('frmColumns'); return false;">
+        <input type="submit" value="Refresh Graph"></input><br />
+       
+      </form>
+    </div>
+    <script type="text/javascript">
+    //setup our columns and Hour Stuff
+    $(function() {
+      var frm=$("#frmColumns");
+      var html = "";
+      var checkText = "checked='checked'"
+      for(i=0;i<columns.length;i++) {
+        if(_.indexOf(state.columns,i)!=-1) {
+          isChecked = checkText;
+        } else {
+          isChecked = "";
+        }
+        
+        var column = columns[i];
+        if(column.required) {
+          html+="<input type='checkbox' name='columns' value='"+i+"' " + isChecked + " disabled='disabled' />"+column.header+"<br />";
+        } else {
+          html+="<input type='checkbox' name='columns' "+ isChecked + " value='"+i+"' />"+column.header+"<br />";
+        }
+      }
+      $("#time").html(state.dateLeft + " - " + state.dateRight);
+      frm.append(html);
+      $("#shiftLeft").html("<- Last " + (timeShift/3600000) + " hour(s)");
+      $("#shiftRight").html("Next " + (timeShift/3600000) + " hour(s) ->");
+    });
+    </script>
+  </body>
+</html>
